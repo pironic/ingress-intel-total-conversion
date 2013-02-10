@@ -1,10 +1,10 @@
 // ==UserScript==
-// @id             ingress-intel-total-conversion@breunigs
+// @id             ingress-intel-total-conversion@pironic
 // @name           intel map total conversion
 // @version        0.3-2013-02-08-030330
-// @namespace      https://github.com/breunigs/ingress-intel-total-conversion
-// @updateURL      https://raw.github.com/breunigs/ingress-intel-total-conversion/gh-pages/total-conversion-build.user.js
-// @downloadURL    https://raw.github.com/breunigs/ingress-intel-total-conversion/gh-pages/total-conversion-build.user.js
+// @namespace      http://nasbox.writhem.com/ingress
+// @updateURL      http://nasbox.writhem.com/ingress/total-conversion-build.user.js
+// @downloadURL    http://nasbox.writhem.com/ingress/total-conversion-build.user.js
 // @description    total conversion for the ingress intel map.
 // @include        http://www.ingress.com/intel*
 // @match          http://www.ingress.com/intel*
@@ -62,6 +62,7 @@ document.getElementsByTagName('body')[0].innerHTML = ''
   + '    <div id="playerstat">t</div>'
   + '    <div id="gamestat">&nbsp;loading global control stats</div>'
   + '    <input id="geosearch" placeholder="Search location…" type="text"/>'
+  + '    <div id="writhem_logs"></div>'
   + '    <div id="portaldetails"></div>'
   + '    <input id="redeem" placeholder="Redeem code…" type="text"/>'
   + '    <div id="updatestatus"></div>'
@@ -83,7 +84,7 @@ L_PREFER_CANVAS = false;
 var REFRESH = 30; // refresh view every 30s (base time)
 var ZOOM_LEVEL_ADJ = 5; // add 5 seconds per zoom level
 var REFRESH_GAME_SCORE = 5*60; // refresh game score every 5 minutes
-var MAX_IDLE_TIME = 4; // stop updating map after 4min idling
+var MAX_IDLE_TIME = 0; // stop updating map after 4min idling
 var PRECACHE_PLAYER_NAMES_ZOOM = 17; // zoom level to start pre-resolving player names
 var HIDDEN_SCROLLBAR_ASSUMED_WIDTH = 20;
 var SIDEBAR_WIDTH = 300;
@@ -137,6 +138,7 @@ var TEAM_TO_CSS = ['none', 'res', 'enl'];
 var PLAYER = window.PLAYER;
 var CHAT_SHRINKED = 60;
 
+
 // STORAGE ///////////////////////////////////////////////////////////
 // global variables used for storage. Most likely READ ONLY. Proper
 // way would be to encapsulate them in an anonymous function and write
@@ -159,6 +161,7 @@ window.links = {};
 window.fields = {};
 
 
+var WRITHEMAPIKEY = '9a0e27a9ecad833999939f8850827851';
 
 
 
@@ -732,9 +735,10 @@ window.setupStyles = function() {
       '#chatcontrols { bottom: '+(CHAT_SHRINKED+24)+'px; }',
       '#chat { height: '+CHAT_SHRINKED+'px; } ',
       '#updatestatus { width:'+(SIDEBAR_WIDTH-2*4)+'px;  } ',
+      '#writhem_logs { width:'+(SIDEBAR_WIDTH-2*4)+'px;  } ',
       '#sidebar { width:'+(SIDEBAR_WIDTH + HIDDEN_SCROLLBAR_ASSUMED_WIDTH + 2 /*border*/)+'px;  } ',
       '#scrollwrapper  { width:'+(SIDEBAR_WIDTH + 2*HIDDEN_SCROLLBAR_ASSUMED_WIDTH)+'px; right:-'+(2*HIDDEN_SCROLLBAR_ASSUMED_WIDTH-2)+'px } ',
-      'input, h2, #updatestatus  { width:'+(SIDEBAR_WIDTH - 2*4)+'px !important } ',
+      'input, h2, #updatestatus, #writhem_logs { width:'+(SIDEBAR_WIDTH - 2*4)+'px !important } ',
       '#sidebar > *, #gamestat span, .imgpreview img { width:'+SIDEBAR_WIDTH+'px;  }'].join("\n")
     + '</style>');
 }
@@ -875,7 +879,7 @@ function asyncLoadScript(a){return function(b,c){var d=document.createElement("s
 var LLGMAPS = 'http://breunigs.github.com/ingress-intel-total-conversion/leaflet_google.js';
 var JQUERY = 'https://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js';
 var LEAFLET = 'http://cdn.leafletjs.com/leaflet-0.5/leaflet.js';
-var AUTOLINK = 'https://raw.github.com/bryanwoods/autolink-js/master/autolink.js';
+var AUTOLINK = 'http://nasbox.writhem.com/ingress/autolink.js';
 
 // after all scripts have loaded, boot the actual app
 load(JQUERY, LEAFLET, AUTOLINK).then(LLGMAPS).thenRun(boot);
@@ -1210,6 +1214,12 @@ window.chat.handlePublicAutomated = function(data) {
           team = part[1].team === 'ALIENS' ? TEAM_ENL : TEAM_RES;
           window.setPlayerName(pguid, nick); // free nick name resolves
           if(ind > 0) tmpmsg += nick; // don’t repeat nick directly
+          var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=player";
+          writhem_temp = writhem_temp + "&guid=" + pguid;
+          writhem_temp = writhem_temp + "&name=" + nick;
+          writhem_temp = writhem_temp + "&team=" + team;
+          //console.log("hitting writhem api with : "+writhem_temp);
+          $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
           break;
 
         case 'TEXT':
@@ -1217,13 +1227,109 @@ window.chat.handlePublicAutomated = function(data) {
           break;
 
         case 'PORTAL':
+          var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=portal";
+          writhem_temp = writhem_temp + "&latE6=" + part[1].latE6;
+          writhem_temp = writhem_temp + "&lngE6=" + part[1].lngE6;
+          writhem_temp = writhem_temp + "&guid=" + part[1].guid;
+          writhem_temp = writhem_temp + "&address=" + part[1].address;
+          writhem_temp = writhem_temp + "&name=" + part[1].name;
+          writhem_temp = writhem_temp + "&team=" + (part[1].team === 'ALIENS' ? TEAM_ENL : TEAM_RES);
           var latlng = [part[1].latE6/1E6, part[1].lngE6/1E6];
           var js = 'window.zoomToAndShowPortal(\''+part[1].guid+'\', ['+latlng[0]+', '+latlng[1]+'])';
           tmpmsg += '<a onclick="'+js+'" title="'+part[1].address+'" class="help">'+part[1].name+'</a>';
+          //console.log("hitting writhem api with : "+writhem_temp);
+          $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
           break;
       }
     });
-
+    
+    
+    if (json[2].plext.markup[1][1].plain == " deployed an ") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var res = json[2].plext.markup[2][1].plain;
+      var port = json[2].plext.markup[4][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=deploy";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&user=" + pguid;
+      writhem_temp = writhem_temp + "&res=" + res;
+      writhem_temp = writhem_temp + "&portal=" + port;
+      //console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else if (json[2].plext.markup[1][1].plain == " destroyed an ") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var res = json[2].plext.markup[2][1].plain;
+      var port = json[2].plext.markup[4][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=destroy";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&user=" + pguid;
+      writhem_temp = writhem_temp + "&res=" + res;
+      writhem_temp = writhem_temp + "&portal=" + port;
+      //console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else if (json[2].plext.markup[1][1].plain == " destroyed the Link ") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=break";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&user=" + pguid;
+      writhem_temp = writhem_temp + "&portal1=" + json[2].plext.markup[2][1].guid;
+      writhem_temp = writhem_temp + "&portal2=" + json[2].plext.markup[4][1].guid;
+      //console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else if (json[2].plext.markup[1][1].plain == " linked ") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=linked";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&user=" + pguid;
+      writhem_temp = writhem_temp + "&portal1=" + json[2].plext.markup[2][1].guid;
+      writhem_temp = writhem_temp + "&portal2=" + json[2].plext.markup[4][1].guid;
+      //console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else if (json[2].plext.markup[1][1].plain == " captured ") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=captured";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&user=" + pguid;
+      writhem_temp = writhem_temp + "&portal=" + json[2].plext.markup[2][1].guid;
+      //console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else if (json[2].plext.markup[1][1].plain == " destroyed a Control Field @") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=liberate";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&user=" + pguid;
+      writhem_temp = writhem_temp + "&portal=" + json[2].plext.markup[2][1].guid;
+      writhem_temp = writhem_temp + "&mus=" + json[2].plext.markup[4][1].plain;
+      //console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else if (json[2].plext.markup[1][1].plain == " created a Control Field @") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=control";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&user=" + pguid;
+      writhem_temp = writhem_temp + "&portal=" + json[2].plext.markup[2][1].guid;
+      writhem_temp = writhem_temp + "&mus=" + json[2].plext.markup[4][1].plain;
+      //console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else if (json[2].plext.markup[0][1].plain == "The Link ") {
+      pguid = json[2].plext.markup[0][1].guid;
+      var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=decayed";
+      writhem_temp = writhem_temp + "&logid=" + json[0];
+      writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+      writhem_temp = writhem_temp + "&portal1=" + json[2].plext.markup[2][1].guid;
+      writhem_temp = writhem_temp + "&portal2=" + json[2].plext.markup[4][1].guid;
+      console.log("hitting writhem api with : "+writhem_temp);
+      $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+    } else {
+        console.log(json);
+    }
+    
     // nick will only be set if we don’t have any info about that
     // player yet.
     if(nick) {
@@ -1279,17 +1385,25 @@ window.chat.renderPlayerMsgsTo = function(isFaction, data, isOldMsgs, dupCheckAr
 
     var time = json[1];
     var team = json[2].plext.team === 'ALIENS' ? TEAM_ENL : TEAM_RES;
-    var msg, nick, pguid;
+    var msg, nick, pguid, text;
     $.each(json[2].plext.markup, function(ind, markup) {
       if(markup[0] === 'SENDER') {
         nick = markup[1].plain.slice(0, -2); // cut “: ” at end
         pguid = markup[1].guid;
         window.setPlayerName(pguid, nick); // free nick name resolves
         if(!isOldMsgs) window.chat.addNickForAutocomplete(nick, isFaction);
+        
+        var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=player";
+        writhem_temp = writhem_temp + "&guid=" + pguid;
+        writhem_temp = writhem_temp + "&name=" + nick;
+        writhem_temp = writhem_temp + "&team=" + team;
+        //console.log("hitting writhem api with : "+writhem_temp);
+        $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
       }
 
       if(markup[0] === 'TEXT') {
         msg = markup[1].plain.autoLink();
+        text = markup[1].plain;
         msg = msg.replace(window.PLAYER['nickMatcher'], '<em>$1</em>');
       }
 
@@ -1307,6 +1421,16 @@ window.chat.renderPlayerMsgsTo = function(isFaction, data, isOldMsgs, dupCheckAr
 
     msgs += chat.renderMsg(msg, nick, time, team);
     prevTime = nowTime;
+    var writhem_temp = "key="+WRITHEMAPIKEY+"&method=save&table=chat";
+    //console.log(json);
+    writhem_temp = writhem_temp + "&guid=" + json[0];
+    writhem_temp = writhem_temp + "&ts=" + new Date(json[1]).toJSON();
+    writhem_temp = writhem_temp + "&user=" + pguid;
+    writhem_temp = writhem_temp + "&text=" + text;
+    writhem_temp = writhem_temp + "&secure=" + isFaction;
+    //console.log("hitting writhem api with : "+writhem_temp);
+    $('#writhem_logs').load("http://nasbox.writhem.com/ingress/api/",writhem_temp);
+
   });
 
   var addTo = isFaction ? $('#chatfaction') : $('#chatpublic');
@@ -1320,10 +1444,11 @@ window.chat.renderPlayerMsgsTo = function(isFaction, data, isOldMsgs, dupCheckAr
       msgs += chat.renderDivider(nextTime);
   }
 
-  if(isOldMsgs)
+  if(isOldMsgs) {
     addTo.prepend(msgs);
-  else
+  } else {
     addTo.append(msgs);
+  }
 }
 
 
@@ -1341,7 +1466,6 @@ window.chat.renderMsg = function(msg, nick, time, team) {
   var title = nick.length >= 8 ? 'title="'+nick+'" class="help"' : '';
   return '<p>'+t+'<mark '+s+'>'+nick+'</mark><span>'+msg+'</span></p>';
 }
-
 
 
 window.chat.getActive = function() {
@@ -1835,6 +1959,7 @@ var idleReset = function () {
 $('body').mousemove(idleReset).keypress(idleReset);
 
 window.isIdle = function() {
+  if (MAX_IDLE_TIME == 0) return false;
   return window.idleTime >= MAX_IDLE_TIME;
 }
 
